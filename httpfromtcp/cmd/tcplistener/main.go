@@ -47,7 +47,7 @@ func main() {
 	// for line := range lines {
 	// 	fmt.Printf("read: %s\n", line)
 	// }
-	listener, _ := net.Listen("tcp4", "localhost:42069")
+	listener, _ := net.Listen("tcp", "localhost:42069")
 	defer listener.Close()
 
 	for {

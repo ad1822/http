@@ -8,45 +8,7 @@ import (
 	"github.com/ad1822/httpfromtcp/internal/request"
 )
 
-// func getLinesChannel(f io.ReadCloser) <-chan string {
-// 	out := make(chan string, 1)
-//
-// 	go func() {
-// 		defer f.Close()
-// 		defer close(out)
-//
-// 		str := ""
-// 		for {
-// 			buffer := make([]byte, 8)
-// 			n, err := f.Read(buffer)
-// 			if err == io.EOF {
-// 				break
-// 			}
-//
-// 			buffer = buffer[:n]
-// 			if i := bytes.IndexByte(buffer, '\n'); i != -1 {
-// 				str += string(buffer[:i])
-// 				buffer = buffer[i+1:]
-// 				out <- str
-// 				str = ""
-// 			}
-// 			str += string(buffer)
-// 		}
-// 	}()
-// 	return out
-// }
-
 func main() {
-	// openFile, err := os.Open("message.txt")
-	// if err != nil {
-	// 	panic(err)
-	// }
-	// defer openFile.Close()
-	//
-	// lines := getLinesChannel(openFile)
-	// for line := range lines {
-	// 	fmt.Printf("read: %s\n", line)
-	// }
 	listener, _ := net.Listen("tcp", "localhost:42069")
 	defer listener.Close()
 
@@ -57,9 +19,10 @@ func main() {
 		}
 		fmt.Println("Connection Accepted", conn.RemoteAddr())
 
+		// NOTE: Now Reading from request, No File
 		rl, err := request.RequestFromReader(conn)
 		if err != nil {
-			fmt.Errorf("Error in RequestFromReader method", err)
+			fmt.Errorf("Error in RequestFromReader method: %v", err)
 		}
 
 		fmt.Println("Request Line :")
@@ -67,11 +30,7 @@ func main() {
 		fmt.Println("- Target: ", rl.RequestLine.RequestTarget)
 		fmt.Println("- HttpVersion: ", rl.RequestLine.HttpVersion)
 
-		// lines := getLinesChannel(conn)
-		//
-		// for line := range lines {
-		// 	fmt.Println(line)
-		// }
 		fmt.Println("Connection to ", conn.RemoteAddr(), "closed")
 	}
+
 }

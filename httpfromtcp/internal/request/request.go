@@ -19,6 +19,12 @@ type RequestLine struct {
 	Method        string
 }
 
+var SEPERATOR = "\r\n"
+
+var (
+	methodRegex = regexp.MustCompile(`^[A-Z]+$`)
+)
+
 type ParserState string
 
 const (
@@ -26,45 +32,11 @@ const (
 	DoneState ParserState = "done"
 )
 
-var SEPERATOR = "\r\n"
-
-var (
-	methodRegex = regexp.MustCompile(`^[A-Z]+$`)
-)
-
-// Get Request from memory using io.ReadAll
-func RequestFromReader(reader io.Reader) (*Request, error) {
-	r := &Request{State: InitState}
-	buf := make([]byte, 0, 8) // start with small buffer
-	tmp := make([]byte, 8)    // read chunks into this
-	for {
-		n, err := reader.Read(tmp)
-		if n > 0 {
-			buf = append(buf, tmp[:n]...)
-			for {
-				consumed, perr := r.parse(buf)
-				if perr != nil {
-					return nil, perr
-				}
-				if consumed == 0 {
-					break // need more data
-				}
-				buf = buf[consumed:] // discard consumed bytes
-				if r.State == DoneState {
-					return r, nil
-				}
-			}
-		}
-		if err == io.EOF {
-			if r.State == DoneState {
-				return r, nil
-			}
-			return nil, fmt.Errorf("incomplete request")
-		}
-		if err != nil {
-			return nil, err
-		}
+func newRequest() *Request {
+	request := &Request{
+		State: InitState,
 	}
+	return request
 }
 
 // Parsing of Request Line
@@ -106,21 +78,57 @@ func parseRequestLine(data []byte) (RequestLine, int, error) {
 	return rl, idx + len(SEPERATOR), nil
 }
 
+const bufSize = 1024
+
+// Get Request from memory using io.ReadAll
+func RequestFromReader(reader io.Reader) (*Request, error) {
+	r := newRequest()
+	buf := make([]byte, bufSize)
+	bufLen := 0
+	for !r.isDone() {
+		n, err := reader.Read(buf[bufLen:]) // NOTE: Read all thing from bufLen
+		if err != nil {
+			return nil, err
+		}
+
+		bufLen += n
+		readN, err := r.parse(buf[:bufLen])
+		if err != nil {
+			return nil, err
+		}
+
+		copy(buf, buf[readN:bufLen])
+		bufLen -= readN
+	}
+
+	return r, nil
+}
+
+func (r *Request) isDone() bool {
+	return r.State == DoneState
+}
+
 func (r *Request) parse(data []byte) (int, error) {
-	if r.State == DoneState {
-		return 0, nil
+	read := 0
+outer:
+	for {
+		switch r.State {
+		case InitState:
+			rl, n, err := parseRequestLine(data[read:])
+			if err != nil {
+				return 0, err
+			}
+			if n == 0 {
+				break outer
+			}
+
+			r.RequestLine = rl
+			read += n
+			r.State = DoneState
+		case DoneState:
+			break outer
+		}
 	}
 
-	rl, consumed, err := parseRequestLine(data)
-	if err != nil {
-		return 0, err
-	}
-	if consumed == 0 {
-		// not enough data yet
-		return 0, nil
-	}
-
-	r.RequestLine = rl
-	r.State = DoneState
-	return consumed, nil
+	return read, nil
 }

@@ -1,40 +1,40 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
-	"io"
 	"log"
 	"net"
+
+	"github.com/ad1822/httpfromtcp/internal/request"
 )
 
-func getLinesChannel(f io.ReadCloser) <-chan string {
-	out := make(chan string, 1)
-
-	go func() {
-		defer f.Close()
-		defer close(out)
-
-		str := ""
-		for {
-			buffer := make([]byte, 8)
-			n, err := f.Read(buffer)
-			if err == io.EOF {
-				break
-			}
-
-			buffer = buffer[:n]
-			if i := bytes.IndexByte(buffer, '\n'); i != -1 {
-				str += string(buffer[:i])
-				buffer = buffer[i+1:]
-				out <- str
-				str = ""
-			}
-			str += string(buffer)
-		}
-	}()
-	return out
-}
+// func getLinesChannel(f io.ReadCloser) <-chan string {
+// 	out := make(chan string, 1)
+//
+// 	go func() {
+// 		defer f.Close()
+// 		defer close(out)
+//
+// 		str := ""
+// 		for {
+// 			buffer := make([]byte, 8)
+// 			n, err := f.Read(buffer)
+// 			if err == io.EOF {
+// 				break
+// 			}
+//
+// 			buffer = buffer[:n]
+// 			if i := bytes.IndexByte(buffer, '\n'); i != -1 {
+// 				str += string(buffer[:i])
+// 				buffer = buffer[i+1:]
+// 				out <- str
+// 				str = ""
+// 			}
+// 			str += string(buffer)
+// 		}
+// 	}()
+// 	return out
+// }
 
 func main() {
 	// openFile, err := os.Open("message.txt")
@@ -57,11 +57,21 @@ func main() {
 		}
 		fmt.Println("Connection Accepted", conn.RemoteAddr())
 
-		lines := getLinesChannel(conn)
-
-		for line := range lines {
-			fmt.Println(line)
+		rl, err := request.RequestFromReader(conn)
+		if err != nil {
+			fmt.Errorf("Error in RequestFromReader method", err)
 		}
+
+		fmt.Println("Request Line :")
+		fmt.Println("- Method: ", rl.RequestLine.Method)
+		fmt.Println("- Target: ", rl.RequestLine.RequestTarget)
+		fmt.Println("- HttpVersion: ", rl.RequestLine.HttpVersion)
+
+		// lines := getLinesChannel(conn)
+		//
+		// for line := range lines {
+		// 	fmt.Println(line)
+		// }
 		fmt.Println("Connection to ", conn.RemoteAddr(), "closed")
 	}
 }

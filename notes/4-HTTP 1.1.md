@@ -36,3 +36,18 @@ start-line = request-line / status-line
 - If a body is expected, read exactly the declared number of bytes (via `Content-Length`, `Trasfer-Encoding`  ), or until connection closure
 - **String-based Parsers** : Only safe for processing content after the message has been structurally parsed—e.g., inside header values after field boundaries are isolated.
 
+
+
+## Request header
+
+### Format
+
+`
+  field-line   = field-name ":" OWS field-value OWS
+` 
+
+`
+Host: localhost:42069
+User-Agent: curl/8.15.0
+Accept: */*
+` 

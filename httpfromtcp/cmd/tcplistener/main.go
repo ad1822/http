@@ -9,31 +9,36 @@ import (
 )
 
 func main() {
-	listener, _ := net.Listen("tcp", "localhost:42069")
+	listener, err := net.Listen("tcp", "localhost:42069")
+	if err != nil {
+		log.Fatalf("failed to listen on port 42069: %v", err)
+	}
 	defer listener.Close()
 
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
-			log.Fatalf("error: %s\n", err.Error())
+			log.Printf("failed to accept connection: %v", err)
+			continue
 		}
-		fmt.Println("Connection Accepted", conn.RemoteAddr())
+		fmt.Printf("Connection Accepted %s\n", conn.RemoteAddr())
 
 		// NOTE: Now Reading from request, No File
 		rl, err := request.RequestFromReader(conn)
 		if err != nil {
-			fmt.Errorf("Error in RequestFromReader method: %v", err)
+			log.Printf("RequestFromReader failed: %v", err)
+			_ = conn.Close()
+			continue
 		}
 
-		fmt.Println("Request Line :")
-		fmt.Println("- Method: ", rl.RequestLine.Method)
-		fmt.Println("- Target: ", rl.RequestLine.RequestTarget)
-		fmt.Println("- HttpVersion: ", rl.RequestLine.HttpVersion)
+		fmt.Printf("Request Line:\n")
+		fmt.Printf("- Method: %s\n", rl.RequestLine.Method)
+		fmt.Printf("- Target: %s\n", rl.RequestLine.RequestTarget)
+		fmt.Printf("- HttpVersion: %s\n", rl.RequestLine.HttpVersion)
 
-		fmt.Println("Headers :")
+		fmt.Printf("Headers:\n")
 		rl.Headers.ForEach(func(n, v string) {
 			fmt.Printf("- %s: %s\n", n, v)
 		})
 	}
-
 }

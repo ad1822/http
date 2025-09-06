@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/ad1822/httpfromtcp/internal/headers"
@@ -14,6 +15,7 @@ type Request struct {
 	RequestLine RequestLine
 	Headers     *headers.Headers
 	State       ParserState
+	Body        string
 }
 
 type RequestLine struct {
@@ -34,12 +36,28 @@ const (
 	StateInit    ParserState = "initialized"
 	StateDone    ParserState = "done"
 	StateHeaders ParserState = "headers"
+	StateBody    ParserState = "body"
 )
+
+func getInt(headers *headers.Headers, name string, defaultValue int) int {
+	valueStr, exists := headers.Get(name)
+
+	if !exists {
+		return defaultValue
+	}
+
+	value, err := strconv.Atoi(valueStr)
+	if err != nil {
+		return defaultValue
+	}
+	return value
+}
 
 func newRequest() *Request {
 	request := &Request{
 		State:   StateInit,
 		Headers: headers.NewHeaders(),
+		Body:    "",
 	}
 	return request
 }
@@ -113,11 +131,19 @@ func (r *Request) isDone() bool {
 	return r.State == StateDone
 }
 
+func (r *Request) hasBody() bool {
+	contentLength := getInt(r.Headers, "Content-Length", 0)
+	return contentLength > 0
+}
+
 func (r *Request) parse(data []byte) (int, error) {
 	read := 0
 outer:
 	for {
 		currentData := data[read:]
+		if len(currentData) == 0 {
+			break outer
+		}
 		switch r.State {
 		case StateInit:
 			rl, n, err := parseRequestLine(currentData)
@@ -133,6 +159,7 @@ outer:
 			// NOTE: Instead of Done, Use this state to parse headers
 			r.State = StateHeaders
 
+		// NOTE: After start-line, It'll parse headers (field-line)
 		case StateHeaders:
 			n, done, err := r.Headers.Parse([]byte(currentData))
 			if err != nil {
@@ -146,8 +173,32 @@ outer:
 
 			read += n
 			if done {
+				if r.hasBody() {
+					r.State = StateBody
+				} else {
+					r.State = StateDone
+				}
+			}
+
+		// NOTE: After headers, It'll parse Body
+		case StateBody:
+			contentLength := getInt(r.Headers, "Content-Length", 0)
+			if contentLength == 0 {
+				r.State = StateDone
+				break
+			}
+
+			remaining := min(contentLength-len(r.Body), len(currentData))
+			r.Body += string(currentData[:remaining])
+			read += remaining
+
+			// fmt.Printf("%s\n", r.Body)
+
+			if contentLength == len(r.Body) {
 				r.State = StateDone
 			}
+
+		// NOTE: Done. Everything parsed
 		case StateDone:
 			break outer
 		default:

@@ -30,7 +30,10 @@ func main() {
 		fmt.Println("- Target: ", rl.RequestLine.RequestTarget)
 		fmt.Println("- HttpVersion: ", rl.RequestLine.HttpVersion)
 
-		fmt.Println("Connection to ", conn.RemoteAddr(), "closed")
+		fmt.Println("Headers :")
+		rl.Headers.ForEach(func(n, v string) {
+			fmt.Printf("- %s: %s\n", n, v)
+		})
 	}
 
 }

@@ -51,3 +51,9 @@ Host: localhost:42069
 User-Agent: curl/8.15.0
 Accept: */*
 ` 
+
+## Request Body
+
+- the extra `CRLF` between headers and body
+
+### Format

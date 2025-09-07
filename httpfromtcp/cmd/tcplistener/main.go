@@ -41,7 +41,11 @@ func main() {
 			fmt.Printf("- %s: %s\n", n, v)
 		})
 
-		fmt.Printf("Body:\n")
-		fmt.Printf("%s\n", rl.Body)
+		if rl.Body != "" {
+			fmt.Printf("Body:\n")
+			fmt.Printf("%s\n", rl.Body)
+		} else {
+			fmt.Printf("No body\n")
+		}
 	}
 }

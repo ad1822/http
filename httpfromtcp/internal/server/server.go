@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"io"
 	"net"
+
+	"github.com/ad1822/httpfromtcp/internal/response"
 )
 
 type Server struct {
@@ -11,9 +13,10 @@ type Server struct {
 }
 
 func runConnection(conn io.ReadWriteCloser) {
-	out := []byte("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 13\r\n\r\nHello World! ")
-	conn.Write(out)
-	conn.Close()
+	defer conn.Close()
+	headers := response.GetDefaultHeaders(10)
+	response.WriteStatusLine(conn, response.StatusOk)
+	response.WriteHeaders(conn, headers)
 }
 
 func runServer(s *Server, listener net.Listener) {
@@ -44,7 +47,4 @@ func Serve(port uint16) (*Server, error) {
 
 func (s *Server) Close() error {
 	return nil
-}
-
-func (s *Server) listen() {
 }

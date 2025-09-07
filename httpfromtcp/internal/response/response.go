@@ -18,9 +18,8 @@ const (
 	StatusInternalServerError StatusCode = 500
 )
 
-func GetDefaultHeaders(contentLen int) *headers.Headers {
+func GetDefaultHeaders() *headers.Headers {
 	headers := headers.NewHeaders()
-	headers.Set("Content-Length", fmt.Sprintf("%d", contentLen))
 	headers.Set("Connection", "close")
 	headers.Set("Content-Type", "text")
 

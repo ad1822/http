@@ -1,16 +1,28 @@
 package main
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
+	"github.com/ad1822/httpfromtcp/internal/headers"
 	"github.com/ad1822/httpfromtcp/internal/request"
 	"github.com/ad1822/httpfromtcp/internal/response"
 	"github.com/ad1822/httpfromtcp/internal/server"
 )
+
+func toStr(bytes []byte) string {
+	out := ""
+	for _, b := range bytes {
+		out += fmt.Sprintf("%02x", b)
+	}
+	return out
+}
 
 func respond400() []byte {
 	return []byte(`
@@ -62,14 +74,57 @@ func main() {
 		body := respond200()
 		status := response.StatusOk
 
-		switch req.RequestLine.RequestTarget {
-		case "/yourproblem":
+		if req.RequestLine.RequestTarget == "/yourproblem" {
 			body = respond400()
 			status = response.StatusBadRequest
-
-		case "/myproblem":
+		} else if req.RequestLine.RequestTarget == "/myproblem" {
 			body = respond500()
 			status = response.StatusInternalServerError
+		} else if req.RequestLine.RequestTarget == "/video" {
+			f, err := os.ReadFile("cmd/httpserver/assets/vim.mp4")
+			if err != nil {
+				fmt.Printf("No video Found : %s\n", err)
+			}
+			h.Replace("Content-Type", "video/mp4")
+			h.Replace("Content-Length", fmt.Sprintf("%d", len(f)))
+			w.WriteStatusLine(response.StatusOk)
+			w.WriteHeaders(*h)
+			w.WriteBody(f)
+		} else if strings.HasPrefix(req.RequestLine.RequestTarget, "/httpbin/") {
+			target := req.RequestLine.RequestTarget
+			res, err := http.Get("https://httpbin.org/" + target[len("/http/bin/"):])
+			if err != nil {
+				body = respond500()
+				status = response.StatusInternalServerError
+			} else {
+				w.WriteStatusLine(response.StatusOk)
+				h.Delete("Content-Length")
+				h.Set("Tranfer-Encoding", "chunked")
+				h.Replace("Content-Type", "text/plain")
+				h.Set("Trailer", "X-Content-SHA256")
+				h.Set("Trailer", "X-Content-Length")
+				w.WriteHeaders(*h)
+
+				fullBody := []byte{}
+				for {
+					data := make([]byte, 32)
+					n, err := res.Body.Read(data)
+					if err != nil {
+						break
+					}
+					fullBody = append(fullBody, data[:n]...)
+					w.WriteBody([]byte(fmt.Sprintf("%x\r\n", n)))
+					w.WriteBody(data[:n])
+					w.WriteBody([]byte("\r\n"))
+				}
+				w.WriteBody([]byte("0\r\n"))
+				tailers := headers.NewHeaders()
+				out := sha256.Sum256(fullBody)
+				tailers.Set("X-Content-SHA256", toStr(out[:]))
+				tailers.Set("X-Content-Length", fmt.Sprintf("%d", len(fullBody)))
+				w.WriteHeaders(*tailers)
+				return
+			}
 		}
 
 		w.WriteStatusLine(status)

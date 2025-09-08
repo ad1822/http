@@ -1,7 +1,6 @@
 package server
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"net"
@@ -21,38 +20,22 @@ type HandlerError struct {
 	error      error
 }
 
-type Handler func(w io.Writer, req *request.Request) *HandlerError
+type Handler func(w *response.Writer, req *request.Request)
 
 func runConnection(s *Server, conn io.ReadWriteCloser) {
 	defer conn.Close()
-	headers := response.GetDefaultHeaders()
+	responseWriter := response.NewWriter(conn)
 
 	request, err := request.RequestFromReader(conn)
 
 	// NOTE: Bad Request
 	if err != nil {
-		response.WriteStatusLine(conn, response.StatusBadRequest)
-		response.WriteHeaders(conn, headers)
+		responseWriter.WriteStatusLine(response.StatusBadRequest)
+		responseWriter.WriteHeaders(*response.GetDefaultHeaders(0))
 		return
 	}
 
-	writer := bytes.NewBuffer([]byte{})
-	handlerError := s.handler(writer, request)
-
-	var body []byte = nil
-	var status response.StatusCode = response.StatusOk
-	// NOTE: Server Error
-	if handlerError != nil {
-		status = handlerError.StatusCode
-		body = []byte(handlerError.Message)
-	} else {
-		body = writer.Bytes()
-	}
-
-	headers.Set("Content-Length", fmt.Sprintf("%d", len(body)))
-	response.WriteStatusLine(conn, status)
-	response.WriteHeaders(conn, headers)
-	conn.Write(body)
+	s.handler(responseWriter, request)
 }
 
 func runServer(s *Server, listener net.Listener) {

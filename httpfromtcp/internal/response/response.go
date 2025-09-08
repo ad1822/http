@@ -10,6 +10,16 @@ import (
 type Response struct {
 }
 
+type Writer struct {
+	writer io.Writer
+}
+
+func NewWriter(writer io.Writer) *Writer {
+	return &Writer{
+		writer: writer,
+	}
+}
+
 type StatusCode int
 
 const (
@@ -18,25 +28,17 @@ const (
 	StatusInternalServerError StatusCode = 500
 )
 
-func GetDefaultHeaders() *headers.Headers {
+func GetDefaultHeaders(contentLen int) *headers.Headers {
 	headers := headers.NewHeaders()
+	// NOTE: Content-Length will set up from message
+	headers.Set("Content-Length", fmt.Sprintf("%d", contentLen))
 	headers.Set("Connection", "close")
 	headers.Set("Content-Type", "text")
 
 	return headers
 }
 
-func WriteHeaders(w io.Writer, headers *headers.Headers) error {
-	b := []byte{}
-	headers.ForEach(func(n, v string) {
-		b = fmt.Appendf(b, "%s: %s\r\n", n, v)
-	})
-	b = fmt.Append(b, "\r\n")
-	_, err := w.Write(b)
-	return err
-}
-
-func WriteStatusLine(w io.Writer, statusCode StatusCode) error {
+func (w *Writer) WriteStatusLine(statusCode StatusCode) error {
 	statusLine := []byte{}
 	switch statusCode {
 	case StatusOk:
@@ -50,6 +52,21 @@ func WriteStatusLine(w io.Writer, statusCode StatusCode) error {
 		return fmt.Errorf("Unrecognized Format")
 	}
 
-	_, err := w.Write(statusLine)
+	_, err := w.writer.Write(statusLine)
 	return err
+}
+func (w *Writer) WriteHeaders(headers headers.Headers) error {
+	b := []byte{}
+	headers.ForEach(func(n, v string) {
+		b = fmt.Appendf(b, "%s: %s\r\n", n, v)
+	})
+	b = fmt.Append(b, "\r\n")
+	_, err := w.writer.Write(b)
+	return err
+}
+
+func (w *Writer) WriteBody(p []byte) (int, error) {
+	n, err := w.writer.Write(p)
+
+	return n, err
 }

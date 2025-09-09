@@ -42,6 +42,7 @@ func isToken(str []byte) bool {
 	return true
 }
 
+// NOTE: Returing a Key, Value pair of header field
 func parseHeaders(fieldLine []byte) (string, string, error) {
 	parts := bytes.SplitN(fieldLine, []byte(":"), 2)
 

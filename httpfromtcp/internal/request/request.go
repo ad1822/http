@@ -19,9 +19,9 @@ type Request struct {
 }
 
 type RequestLine struct {
-	HttpVersion   string
-	RequestTarget string
 	Method        string
+	RequestTarget string
+	HttpVersion   string
 }
 
 var SEPERATOR = "\r\n"
@@ -62,13 +62,22 @@ func newRequest() *Request {
 	return request
 }
 
+func validHTTP(HttpVersion, version string) bool {
+	if strings.HasPrefix(HttpVersion, "HTTP/") && version == "1.1" {
+		return true
+	}
+	return false
+}
+
 // Parsing of Request Line
 func parseRequestLine(data []byte) (RequestLine, int, error) {
 	idx := bytes.Index(data, []byte(SEPERATOR))
+	// NOTE: Return, If there is not SEPERATOR Found, /r/n
 	if idx == -1 {
 		return RequestLine{}, 0, nil
 	}
-	line := string(data[:idx])
+	// NOTE: Found SEPERATOR on idx. So, Take a data before SEPERATOR
+	line := string(data[:idx]) // Not Includes SEPERATOR
 	parts := strings.Split(line, " ")
 	if len(parts) != 3 {
 		return RequestLine{}, 0, fmt.Errorf("invalid request line: expected 3 parts, got %d", len(parts))
@@ -78,19 +87,19 @@ func parseRequestLine(data []byte) (RequestLine, int, error) {
 	target := parts[1]
 	versionRaw := parts[2]
 
-	// Validate method: must be all uppercase letters
+	// NOTE: Validate method: must be all uppercase letters
 	if !methodRegex.MatchString(method) {
 		return RequestLine{}, 0, fmt.Errorf("invalid method: %q", method)
 	}
 
-	// Validate HTTP version
 	const prefix = "HTTP/"
-	if !strings.HasPrefix(versionRaw, prefix) {
-		return RequestLine{}, 0, fmt.Errorf("invalid http version format: %q", versionRaw)
-	}
+
+	// Gives version of HTTP. Like 1.1 or 2, whatever
 	version := strings.TrimPrefix(versionRaw, prefix)
-	if version != "1.1" {
-		return RequestLine{}, 0, fmt.Errorf("unsupported http version: %q", version)
+
+	ok := validHTTP(versionRaw, version)
+	if ok != true {
+		return RequestLine{}, 0, fmt.Errorf("unsupported http version or format: %q", version)
 	}
 
 	rl := RequestLine{
@@ -101,20 +110,23 @@ func parseRequestLine(data []byte) (RequestLine, int, error) {
 	return rl, idx + len(SEPERATOR), nil
 }
 
-const bufSize = 1024
+const bufSize = 30
 
-// Get Request from memory using io.ReadAll
 func RequestFromReader(reader io.Reader) (*Request, error) {
 	r := newRequest()
 	buf := make([]byte, bufSize)
 	bufLen := 0
+
+	// keep reading until request is fully parsed
 	for !r.isDone() {
+		// NOTE: It reads from starting, So At start, bufLen is 0. So it will reads all thing from starting which is 0
 		n, err := reader.Read(buf[bufLen:]) // NOTE: Read all thing from bufLen
 		if err != nil {
 			return nil, err
 		}
 
 		bufLen += n
+		// NOTE: Parse until bufLen, which is n at first
 		readN, err := r.parse(buf[:bufLen])
 		if err != nil {
 			return nil, err
@@ -131,11 +143,13 @@ func (r *Request) isDone() bool {
 	return r.State == StateDone
 }
 
+// NOTE: Check If body available for not, using Content-Length
 func (r *Request) hasBody() bool {
 	contentLength := getInt(r.Headers, "Content-Length", 0)
 	return contentLength > 0
 }
 
+// NOTE: This is a main function, Where Everything get attached. Like Statemachine
 func (r *Request) parse(data []byte) (int, error) {
 	read := 0
 outer:
@@ -146,6 +160,7 @@ outer:
 		}
 		switch r.State {
 		case StateInit:
+			// NOTE: 1st Phase, Parse request line
 			rl, n, err := parseRequestLine(currentData)
 			if err != nil {
 				return 0, err
@@ -156,7 +171,9 @@ outer:
 
 			r.RequestLine = rl
 			read += n
+
 			// NOTE: Instead of Done, Use this state to parse headers
+			// NOTE Going for 2nd stage, which is parsing headers
 			r.State = StateHeaders
 
 		// NOTE: After start-line, It'll parse headers (field-line)
@@ -191,8 +208,6 @@ outer:
 			remaining := min(contentLength-len(r.Body), len(currentData))
 			r.Body += string(currentData[:remaining])
 			read += remaining
-
-			// fmt.Printf("%s\n", r.Body)
 
 			if contentLength == len(r.Body) {
 				r.State = StateDone

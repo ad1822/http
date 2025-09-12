@@ -52,28 +52,34 @@ func parseHeaders(fieldLine []byte) (string, string, error) {
 	name := parts[0]
 	value := bytes.TrimSpace(parts[1])
 
+	// NOTE:  Spaces aren't allowed in header key field
 	if bytes.HasSuffix(name, []byte(" ")) {
 		return "", "", fmt.Errorf("malformed field name")
 	}
 	return string(name), string(value), nil
 }
 
+// Get Value by key of header
+// Also gives true/false to check header is available or not
 func (h *Headers) Get(name string) (string, bool) {
 	str, ok := h.headers[strings.ToLower(name)]
 	return str, ok
 }
 
+// Replace Value of key, Mostly use to replace Content-Length, Type
 func (h *Headers) Replace(name, value string) {
 	name = strings.ToLower(name)
 	h.headers[name] = value
 }
 
+// Delete key, value pair of headers
 func (h *Headers) Delete(name string) {
 	name = strings.ToLower(name)
 	delete(h.headers, name)
 
 }
 
+// Set key, value pair in headers map
 func (h *Headers) Set(name, value string) {
 	name = strings.ToLower(name)
 	if v, ok := h.headers[name]; ok {
@@ -83,6 +89,7 @@ func (h *Headers) Set(name, value string) {
 	}
 }
 
+// Parse headers, Return size, is there or not
 func (h *Headers) Parse(data []byte) (int, bool, error) {
 	done := false
 	read := 0

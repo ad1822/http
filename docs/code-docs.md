@@ -17,7 +17,7 @@
   - `RequestTarget string` // /path
   - `HttpVersion   string` // HTTP/1.1, HTTP/2.0
 
-### Methods / Functions
+#### Methods / Functions
 
 - `newRequest`- returns Object of `Request`  - Create a new request object
 - `validHTTP` - returns `true/false` - Just, If HTTP version and format is right or not
@@ -30,5 +30,19 @@
   RequestFromReader -> parse -> parseRequestLine -> parseHeaders
   ```
 
+## Headers
+
+- `Headers struct` 
+  - `headers map[string]string` - It's a map. That stores key-value pair 
 
 
+#### Format 
+  `
+content-length: 151
+connection: close
+content-type: text/html
+  ` 
+
+#### Method / Functions
+
+- `parseHeaders` - returns a key, value pair of headers - Split a string by `:`, and Checks some cases 
